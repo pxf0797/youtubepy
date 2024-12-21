@@ -21,6 +21,8 @@ def download_video(url, output_path='downloads', format_id=None, retry_count=0):
             'http_chunk_size': 1048576,  # 1MB分块
             'file_access_retries': 3,
             # 音视频处理选项
+            #'format': 'bestvideo+bestaudio/best',  # 下载最佳视频和音频质量，不限制格式
+            #'merge_output_format': None,  # 保持原始格式
             'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',  # 优先下载最佳mp4视频和音频
             'merge_output_format': 'mp4',  # 合并为mp4格式
             'postprocessors': [{
@@ -43,6 +45,7 @@ def download_video(url, output_path='downloads', format_id=None, retry_count=0):
         
         if format_id and format_id != 'best':
             # 如果指定了格式，确保同时下载对应的音频流
+            #ydl_opts['format'] = f'{format_id}+bestaudio/best'
             ydl_opts['format'] = f'{format_id}+bestaudio[ext=m4a]/best'
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
