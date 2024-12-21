@@ -1,9 +1,10 @@
 import yt_dlp
 import os
 import socket
+from pathlib import Path
 
 def download_video(url, output_path='downloads', format_id=None):
-    """下载指定格式的视频，带重试和错误处理"""
+    """下载指定格式的视频，支持断点续传"""
     try:
         if not os.path.exists(output_path):
             os.makedirs(output_path)
@@ -12,45 +13,68 @@ def download_video(url, output_path='downloads', format_id=None):
         ydl_opts = {
             'outtmpl': f'{output_path}/%(title)s.%(ext)s',
             'progress_hooks': [lambda d: print(f"下载进度: {d['_percent_str']}" if '_percent_str' in d else "")],
-            # 添加重试和超时设置
-            'retries': 10,  # 重试次数
-            'fragment_retries': 10,  # 分片下载重试次数
-            'socket_timeout': 30,  # 超时设置
-            'nocheckcertificate': True,  # 忽略SSL证书验证
-            # 添加网络设置
-            'buffersize': 1024 * 1024,  # 缓冲区大小
-            'http_chunk_size': 10485760,  # 分块大小（10MB）
+            # 断点续传设置
+            'continuedl': True,  # 启用断点续传
+            'retries': 10,
+            'fragment_retries': 10,
+            'socket_timeout': 30,
+            'nocheckcertificate': True,
+            # 网络优化设置
+            'buffersize': 1024 * 1024,
+            'http_chunk_size': 10485760,
         }
         
         if format_id:
             ydl_opts['format'] = format_id
 
-        # 设置更长的超时时间
+        # 设置超时时间
         socket.setdefaulttimeout(30)
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            print(f"\n视频信息：")
-            print(f"标题: {info.get('title', 'N/A')}")
-            print(f"时长: {info.get('duration', 'N/A')} 秒")
-            print(f"大小: {info.get('filesize_approx', 0)/1024/1024:.1f} MB")
-            
-            confirm = input("\n确认下载？(y/n): ")
-            if confirm.lower() != 'y':
-                print("下载已取消")
+            # 先获取视频信息
+            try:
+                info = ydl.extract_info(url, download=False)
+                print(f"\n视频信息：")
+                print(f"标题: {info.get('title', 'N/A')}")
+                print(f"时长: {info.get('duration', 'N/A')} 秒")
+                print(f"预计大小: {info.get('filesize_approx', 0)/1024/1024:.1f} MB")
+                
+                # 检查是否存在部分下载的文件
+                filename = ydl.prepare_filename(info)
+                partial_file = Path(filename + '.part')
+                temp_file = Path(filename + '.temp')
+                
+                if partial_file.exists() or temp_file.exists():
+                    resume = input("\n检测到未完成的下载，是否继续上次的下载？(y/n): ")
+                    if resume.lower() != 'y':
+                        # 删除部分下载的文件
+                        if partial_file.exists():
+                            partial_file.unlink()
+                        if temp_file.exists():
+                            temp_file.unlink()
+                        print("已删除未完成的下载文件，将重新开始下载")
+                else:
+                    confirm = input("\n确认开始新下载？(y/n): ")
+                    if confirm.lower() != 'y':
+                        print("下载已取消")
+                        return
+                
+                # 开始下载
+                print("\n开始下载...")
+                ydl.download([url])
+                
+            except yt_dlp.utils.DownloadError as e:
+                print(f"\n下载中断: {str(e)}")
+                retry = input("是否继续尝试下载？(y/n): ")
+                if retry.lower() == 'y':
+                    print("\n继续下载...")
+                    download_video(url, output_path, format_id)
                 return
-            
-            print("\n开始下载... (如果下载中断将自动重试)")
-            ydl.download([url])
             
         print(f"\n下载完成！视频保存在: {output_path}")
         
     except Exception as e:
-        print(f"\n下载出错: {str(e)}")
-        retry = input("是否要重试下载？(y/n): ")
-        if retry.lower() == 'y':
-            print("\n重新尝试下载...")
-            download_video(url, output_path, format_id)
+        print(f"\n发生错误: {str(e)}")
 
 def list_formats(url):
     """列出所有可用的视频格式"""
