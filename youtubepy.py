@@ -2,8 +2,8 @@ import yt_dlp
 import os
 from pathlib import Path
 
-def download_video(url, output_path='downloads', format_id=None):
-    """下载指定格式的视频，支持断点续传和分片下载"""
+def download_video(url, output_path='downloads', format_id=None, retry_count=0):
+    """下载指定格式的视频，支持断点续传和分片下载，失败时最多重试10次"""
     try:
         if not os.path.exists(output_path):
             os.makedirs(output_path)
@@ -57,22 +57,29 @@ def download_video(url, output_path='downloads', format_id=None):
                 ydl.download([url])
                 
             except yt_dlp.utils.DownloadError as e:
-                print(f"\n下载中断: {str(e)}")
-                print("\n请选择操作：")
-                print("1. 继续尝试当前下载")
-                print("2. 选择较低质量继续下载")
-                print("3. 保存已下载部分并退出")
-                
-                choice = input("请输入选项 (1-3): ")
-                
-                if choice == '1':
-                    return download_video(url, output_path, format_id)
-                elif choice == '2':
-                    new_format = input("请输入新的格式ID (较低质量): ")
-                    return download_video(url, output_path, new_format)
+                if retry_count < 10:
+                    retry_count += 1
+                    print(f"\n下载中断: {str(e)}")
+                    print(f"正在进行第 {retry_count} 次重试...")
+                    return download_video(url, output_path, format_id, retry_count)
                 else:
-                    print("已保存当前进度，您可以稍后继续下载")
-                    return
+                    print(f"\n下载失败，已重试10次: {str(e)}")
+                    print("\n请选择操作：")
+                    print("1. 继续尝试当前下载")
+                    print("2. 选择较低质量继续下载")
+                    print("3. 保存已下载部分并退出")
+                    
+                    choice = input("请输入选项 (1-3): ")
+                    
+                    if choice == '1':
+                        retry_count = 0 # 重置重试计数
+                        return download_video(url, output_path, format_id, retry_count)
+                    if choice == '2':
+                        new_format = input("请输入新的格式ID (较低质量): ")
+                        return download_video(url, output_path, new_format, 0)  # 重置重试计数
+                    else:
+                        print("已保存当前进度，您可以稍后继续下载")
+                        return
                 
         print(f"\n下载完成！视频保存在: {output_path}")
         
