@@ -20,6 +20,13 @@ def download_video(url, output_path='downloads', format_id=None, retry_count=0):
             # 优化的网络参数
             'http_chunk_size': 1048576,  # 1MB分块
             'file_access_retries': 3,
+            # 音视频处理选项
+            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',  # 优先下载最佳mp4视频和音频
+            'merge_output_format': 'mp4',  # 合并为mp4格式
+            'postprocessors': [{
+                'key': 'FFmpegVideoConvertor',
+                'preferedformat': 'mp4',  # 确保输出为mp4格式
+            }],
             # 使用aria2作为外部下载器来提高稳定性
             'external_downloader': 'aria2c',
             'external_downloader_args': [
@@ -34,8 +41,9 @@ def download_video(url, output_path='downloads', format_id=None, retry_count=0):
             ]
         }
         
-        if format_id:
-            ydl_opts['format'] = format_id
+        if format_id and format_id != 'best':
+            # 如果指定了格式，确保同时下载对应的音频流
+            ydl_opts['format'] = f'{format_id}+bestaudio[ext=m4a]/best'
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             try:
